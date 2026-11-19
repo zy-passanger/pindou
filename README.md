@@ -4,6 +4,29 @@
 
 所有工程、我的色卡和偏好都保存在本机 IndexedDB，不上传服务器；构建产物是可离线使用的 PWA。
 
+<p align="center">
+  <img src="docs/assets/hero.jpg" width="600" alt="拼豆工坊：一张照片变成拼豆图纸" />
+</p>
+
+## 界面预览
+
+<p align="center">
+  <img src="docs/assets/home.png" width="82%" alt="拼豆工坊首页：最近工程与新建入口" />
+</p>
+<p align="center"><sub>首页：最近工程、缩略图、总颗数，以及「从图片开始 / 新建图纸」入口</sub></p>
+
+<p align="center">
+  <img src="docs/assets/editor-fit.png" width="49%" alt="编辑器：图纸全图与色板" />
+  <img src="docs/assets/editor-codes.png" width="49%" alt="放大后格内显示 MARD 色号" />
+</p>
+<p align="center"><sub>左：整图编辑、色板与用量统计；右：放大后每个色块中央显示 MARD 色号</sub></p>
+
+<p align="center">
+  <img src="docs/assets/import-compare.png" width="36%" alt="图片转图纸：原图与图纸对比" />
+  <img src="docs/assets/export.png" width="62%" alt="PNG 图纸导出：逐格色号、坐标与图例" />
+</p>
+<p align="center"><sub>左：图片转图纸的原图 / 图纸滑动对比；右：PNG 图纸导出，含逐格色号、坐标和图例</sub></p>
+
 ## 功能
 
 - **工程**：新建空白图纸、首页最近工程、缩略图、重命名、复制、删除、`.pindou.json` 导入/导出备份。
