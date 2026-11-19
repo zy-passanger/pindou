@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { boardCount, physicalSize, type Project } from '@/core/model';
 import { INDEX_BY_CODE } from '@/core/palette';
 import { computeStats, type ProjectStats } from '@/core/stats';
@@ -20,7 +20,9 @@ import { SettingsSheet } from './SettingsSheet';
 import { SettingsPanel } from './SettingsPanel';
 import { ExportSheet } from './ExportSheet';
 
-type Overlay = null | 'palette' | 'mypalette' | 'stats' | 'settings' | 'settingsPanel' | 'export';
+const AiGenerateSheet = lazy(() => import('@/features/ai/AiGenerateSheet').then((module) => ({ default: module.AiGenerateSheet })));
+
+type Overlay = null | 'palette' | 'mypalette' | 'stats' | 'settings' | 'settingsPanel' | 'export' | 'ai';
 type SaveState = 'saved' | 'saving' | 'error';
 
 const RAIL_TOOLS: ToolId[] = ['pencil', 'eraser', 'fill', 'eyedropper', 'line', 'rect', 'ellipse', 'pan'];
@@ -354,8 +356,11 @@ export function EditorScreen() {
                   <span style={beadStyle('#41CCFF')} /><span style={beadStyle('#5DE035')} />
                 </div>
                 <h3>空白画布，等你落第一颗豆</h3>
-                <p>从色板选一个颜色点按画布开始，也可以导入图片自动生成图纸。</p>
-                <button className="btn btn--primary btn--sm" onClick={() => startImport('editor')}><Icon name="image" />从图片开始</button>
+                <p>从色板选一个颜色点按画布开始，也可以导入图片或让 AI 生成图纸。</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <button className="btn btn--primary btn--sm" onClick={() => startImport('editor')}><Icon name="image" />从图片开始</button>
+                  <button className="btn btn--secondary btn--sm" onClick={() => openOverlay('ai')}><Icon name="sparkles" />AI 生成</button>
+                </div>
               </div>
             )}
           </div>
@@ -432,6 +437,7 @@ export function EditorScreen() {
             <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
             <div className="menu-popover" role="menu">
               <button className="menu-item" onClick={() => { setMenuOpen(false); startImport('editor'); }}><Icon name="image" />从图片导入</button>
+              <button className="menu-item" onClick={() => { setMenuOpen(false); openOverlay('ai'); }}><Icon name="sparkles" />AI 生成图纸</button>
               <button className="menu-item" onClick={() => openOverlay('mypalette')}><Icon name="bead" />我的色卡</button>
               <button className="menu-item" onClick={() => { setMenuOpen(false); if (layout === 'wide') setSideTab('settings'); else openOverlay('settingsPanel'); }} disabled={!engine}><Icon name="settings" />画布设置</button>
               <div className="menu-sep" />
@@ -480,6 +486,12 @@ export function EditorScreen() {
 
         {overlay === 'export' && (
           <ExportSheet project={project} stats={stats} onClose={() => setOverlay(null)} />
+        )}
+
+        {overlay === 'ai' && (
+          <Suspense fallback={null}>
+            <AiGenerateSheet entry="editor" project={project} onClose={() => setOverlay(null)} />
+          </Suspense>
         )}
       </div>
 

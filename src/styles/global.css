@@ -3451,3 +3451,102 @@ html, body, #root { height: 100%; }
 .input--sm { height: 36px; padding: 6px 9px; font-size: 12px; }
 .settings-panel { flex: 1 1 auto; min-height: 0; }
 .sheet__body .settings-panel { overflow: visible; }
+
+/* ---------- AI 生成图纸 ---------- */
+.ai-mode-tabs { margin-bottom: 12px; }
+.ai-mode-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.ai-mode-tabs .icon { width: 15px; height: 15px; }
+.ai-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+.ai-section-head > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.ai-section-head .icon { width: 16px; height: 16px; color: var(--teal); }
+.ai-section-head__meta {
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.ai-connection__body { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.ai-key-row { display: flex; gap: 6px; align-items: center; }
+.ai-key-row .input { flex: 1 1 auto; min-width: 0; }
+.ai-remember-row { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 0; }
+.ai-connection__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.ai-note .icon { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; }
+.ai-style-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.ai-size-row { width: 100%; }
+.ai-size-row button { flex: 1 1 0; min-width: 0; }
+.ai-error { align-items: flex-start; }
+.ai-error > div { min-width: 0; }
+.ai-errors { margin: 6px 0 8px; padding-left: 18px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.ai-preview__body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.ai-preview__body img {
+  width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.ai-preview__meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; font-size: 12px; line-height: 1.55; }
+.ai-preview__prompt { color: var(--ink-2); overflow-wrap: anywhere; }
+.ai-preview__tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.ai-palette { display: flex; flex-wrap: wrap; gap: 4px; }
+.ai-palette__swatch { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--line-strong); }
+.ai-preview__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.ai-history__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin-top: 10px; }
+.ai-history__item { position: relative; min-width: 0; }
+.ai-history__load {
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  text-align: left;
+}
+.ai-history__load:hover { border-color: var(--line-strong); }
+.ai-history__load img { width: 100%; height: 78px; object-fit: cover; display: block; }
+.ai-history__placeholder { height: 78px; display: grid; place-items: center; color: var(--muted); background: var(--surface-2); }
+.ai-history__caption { display: block; padding: 4px 6px; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-history__delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: rgba(255, 253, 247, .88);
+  border: 1px solid var(--line);
+}
+.ai-history__delete .icon { width: 13px; height: 13px; }
+.ai-loading { display: flex; align-items: center; gap: 8px; padding: 10px 2px; color: var(--muted); font-size: 12px; }
+#app[data-layout="phone"] .ai-preview__body { grid-template-columns: 1fr; }
+#app[data-layout="phone"] .ai-history__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

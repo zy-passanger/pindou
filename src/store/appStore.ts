@@ -4,6 +4,7 @@ import { DEFAULT_MY_PALETTE, MARD_PALETTE } from '@/core/palette';
 import { computeStats, mostUsedIndex, type ProjectStats } from '@/core/stats';
 import type { AppSettings } from '@/storage/db';
 import { saveMyPaletteCodes, saveSettings } from '@/storage/projectRepository';
+import type { AiSizePreset } from '@/core/imagegen/types';
 
 export type View = 'home' | 'editor' | 'import';
 export type Layout = 'wide' | 'tablet' | 'phone';
@@ -28,10 +29,32 @@ export interface ToastItem {
   tone: ToastTone;
 }
 
+export interface PendingImport {
+  source: HTMLImageElement | HTMLCanvasElement;
+  url: string;
+  name: string;
+  generationId?: string;
+  autoFrame: boolean;
+  startStep: 2 | 3;
+  size?: { width: number; height: number };
+  sizePreset?: AiSizePreset;
+  paramOverrides?: {
+    removeBg?: boolean;
+    tolerance?: number;
+    autoPalette?: boolean;
+    maxColors?: number;
+    mergeNear?: number;
+    dither?: boolean;
+    matchMode?: 'standard' | 'faithful';
+    resample?: 'smooth' | 'sharp';
+  };
+}
+
 interface AppState {
   view: View;
   layout: Layout;
   importEntry: 'home' | 'editor' | null;
+  pendingImport: PendingImport | null;
   projects: ProjectSummary[];
   currentProject: Project | null;
   settings: AppSettings | null;
@@ -55,6 +78,8 @@ interface AppState {
   finishImport: (project: Project) => void;
   closeEditor: () => void;
   startImport: (entry: 'home' | 'editor') => void;
+  startImportWithImage: (entry: 'home' | 'editor', seed: PendingImport) => void;
+  consumePendingImport: () => void;
   cancelImport: () => void;
   setSettings: (settings: AppSettings) => void;
   setMyPaletteCodes: (codes: string[]) => void;
@@ -96,6 +121,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   view: 'home',
   layout: 'wide',
   importEntry: null,
+  pendingImport: null,
   projects: [],
   currentProject: null,
   settings: null,
@@ -122,6 +148,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentProject: project,
       view: 'editor',
       importEntry: null,
+      pendingImport: null,
       selectedColorCode: defaultColorCode(project),
       tool: 'pencil',
       paletteTab: 'used',
@@ -140,13 +167,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   finishImport: (project) => get().openProject(project),
-  closeEditor: () => set({ view: 'home', currentProject: null, importEntry: null, editor: emptyEditor }),
-  startImport: (entry) => set({ view: 'import', importEntry: entry }),
+  closeEditor: () => set({ view: 'home', currentProject: null, importEntry: null, pendingImport: null, editor: emptyEditor }),
+  startImport: (entry) => set({ view: 'import', importEntry: entry, pendingImport: null }),
+  startImportWithImage: (entry, seed) => set({ view: 'import', importEntry: entry, pendingImport: seed }),
+  consumePendingImport: () => set({ pendingImport: null }),
   cancelImport: () => {
     const { importEntry, currentProject } = get();
     set({
       view: importEntry === 'editor' && currentProject ? 'editor' : 'home',
       importEntry: null,
+      pendingImport: null,
     });
   },
 

@@ -7,6 +7,7 @@ import { detectContentBounds, frameContentBounds } from '@/core/imageBounds';
 import { getActiveEngine } from '@/editor/engineBridge';
 import { createSampleImage, drawPatternCanvas } from '@/export/preview';
 import { saveProjectWithThumbnail } from '@/storage/projectRepository';
+import { markGenerationProject } from '@/storage/aiRepository';
 import { useAppStore } from '@/store/appStore';
 import { Icon } from '@/ui/Icon';
 import { beadStyle } from '@/ui/beadStyle';
@@ -189,11 +190,13 @@ export function ImportWizard() {
   const showToast = useAppStore((state) => state.showToast);
 
   const targetPalette = entry === 'editor' && currentProject ? currentProject.palette : MARD_PALETTE;
-  const [sizePreset, setSizePreset] = useState<'44x52' | '52x52' | '78x78' | '104x104'>('52x52');
+  const initialSeedRef = useRef(useAppStore.getState().pendingImport);
+  const [sizePreset, setSizePreset] = useState<'44x52' | '52x52' | '78x78' | '104x104'>(initialSeedRef.current?.sizePreset ?? '52x52');
   const targetW = entry === 'editor' && currentProject ? currentProject.width : Number(sizePreset.split('x')[0]);
   const targetH = entry === 'editor' && currentProject ? currentProject.height : Number(sizePreset.split('x')[1]);
   const beadSize: BeadSizeMm = entry === 'editor' && currentProject ? currentProject.beadSizeMm : 2.6;
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(initialSeedRef.current?.startStep ?? 1);
+  const [generationId, setGenerationId] = useState<string | null>(initialSeedRef.current?.generationId ?? null);
   const [image, setImage] = useState<ImageSource | null>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [imageName, setImageName] = useState('');
@@ -263,17 +266,51 @@ export function ImportWizard() {
     };
   }, [imageUrl]);
 
-  const selectImage = (source: ImageSource, url: string, label: string) => {
+  const selectImage = (
+    source: ImageSource,
+    url: string,
+    label: string,
+    options?: { autoFrame?: boolean; targetW?: number; targetH?: number; generationId?: string },
+  ) => {
     setImage(source);
     setImageUrl(url);
     setImageName(label);
     // 透明留白或纯色背景留白会自动按主体边界取景，主体真正铺满画布；
     // 用户仍可在裁剪步骤手动拖动或点「自动取景」重算。
-    setCrop(autoFrameImage(source, targetW, targetH) ?? { ...DEFAULT_CROP });
+    // AI 色号网格是精确构图，关闭自动取景，避免裁掉主体边缘。
+    const frameW = options?.targetW ?? targetW;
+    const frameH = options?.targetH ?? targetH;
+    setCrop(options?.autoFrame === false ? { ...DEFAULT_CROP } : (autoFrameImage(source, frameW, frameH) ?? { ...DEFAULT_CROP }));
     setResult(null);
     setWizardError(null);
-    setName(label ? `${label.replace(/\.[^.]+$/, '')} 图纸` : '图片图纸');
+    setGenerationId(options?.generationId ?? null);
+    const baseName = label ? label.replace(/\.[^.]+$/, '') : '图片';
+    setName(baseName.endsWith('图纸') ? baseName : `${baseName} 图纸`);
   };
+
+  // AI 生成 Sheet 通过 pendingImport 把图片交进来。只消费一次；StrictMode 的
+  // setup/cleanup 重跑时第二次读到 null，不会重复选图。
+  useEffect(() => {
+    const seed = useAppStore.getState().pendingImport;
+    if (!seed) return;
+    useAppStore.getState().consumePendingImport();
+    if (seed.paramOverrides) {
+      setParams((prev) => ({ ...prev, ...seed.paramOverrides }));
+    }
+    const size = seed.size ?? (seed.sizePreset
+      ? { width: Number(seed.sizePreset.split('x')[0]), height: Number(seed.sizePreset.split('x')[1]) }
+      : undefined);
+    selectImage(seed.source, seed.url, seed.name, {
+      autoFrame: seed.autoFrame,
+      targetW: size?.width,
+      targetH: size?.height,
+      generationId: seed.generationId,
+    });
+    setStep(seed.startStep);
+    // selectImage 每次渲染都会重建，但 pendingImport 是 mount 时的一次性输入；
+    // 这里故意只在挂载时消费，避免依赖函数导致重复执行。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reframe = () => {
     if (!image) return;
@@ -507,6 +544,9 @@ export function ImportWizard() {
           currentProject.updatedAt = Date.now();
           await saveProjectWithThumbnail(currentProject);
         }
+        if (generationId && currentProject) {
+          await markGenerationProject(generationId, currentProject.id).catch(() => {});
+        }
         cancelImport();
         showToast('已替换当前画布，可撤销恢复');
       } else {
@@ -520,6 +560,7 @@ export function ImportWizard() {
           cells: result.cells.slice(),
         });
         await saveProjectWithThumbnail(project);
+        if (generationId) await markGenerationProject(generationId, project.id).catch(() => {});
         openProject(project);
         showToast('图纸已创建');
       }

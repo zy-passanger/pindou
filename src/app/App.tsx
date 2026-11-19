@@ -20,6 +20,20 @@ export function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const onDbEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail;
+      showToast(
+        detail?.type === 'blocked'
+          ? '数据库升级被其他标签页占用，请关闭其他拼豆工坊标签页后刷新'
+          : '数据库已更新，请刷新页面以继续',
+        'warn',
+      );
+    };
+    window.addEventListener('pindou:db', onDbEvent);
+    return () => window.removeEventListener('pindou:db', onDbEvent);
+  }, [showToast]);
+
+  useEffect(() => {
     let alive = true;
     (async () => {
       try {

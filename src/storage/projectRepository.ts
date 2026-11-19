@@ -56,7 +56,7 @@ export async function getProject(id: string): Promise<Project | null> {
 let persistenceRequested = false;
 
 /** 首次保存时静默申请持久化存储，降低被系统清理的概率。 */
-function requestPersistentStorage(): void {
+export function requestPersistentStorage(): void {
   if (persistenceRequested) return;
   persistenceRequested = true;
   try {

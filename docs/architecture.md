@@ -47,7 +47,8 @@
 
 - **MARD 291 色数据**：221 常用（classic，A–H + M）+ 70 特殊效果（珠光/温变/果冻/透明白/夜光/光变）。
 - **我的色卡默认 221**：默认启用全部 221 常用；可切 291 全色、逐色调整、粘贴 226 套装清单。
-- **数据本地保存**：工程与我的色卡保存本机；不做云同步；正式版用 IndexedDB，设计原型用 localStorage 演示。
+- **数据本地保存**：工程、我的色卡、AI 服务配置与生成历史保存本机；不做云同步；正式版用 IndexedDB，设计原型用 localStorage 演示。
+- **AI 生成为可选联网能力**：用户自行配置第三方服务商与 Key，请求从浏览器直连；AI 关闭或离线时不影响其余功能。
 - **图纸导出**：PNG、A4 PDF（分页/镜像/1:1/重叠/图例页）、CSV。
 - **触控优先**：手机底栏 7 个绘制工具 + 当前色；平移用双指；平板/桌面工具栏含平移工具。
 
@@ -58,7 +59,7 @@
 | 纯前端、无后端 | 计算、存储、导出全部在浏览器；需要 Worker、IndexedDB、PWA |
 | iPad Safari 内存有限 | PDF/大图要逐页、逐块处理；默认 200 DPI；限制 300×300 |
 | IndexedDB 可能被系统清理 | 请求持久化；提供工程文件导出/导入；提示备份 |
-| 无外网依赖 | 字体、图标、色卡数据全部本地；PWA 离线 |
+| 核心无外网依赖 | 字体、图标、色卡数据全部本地；PWA 离线；仅可选 AI 生成需要直连第三方 API |
 | 中文 PDF | 不嵌入 CJK 字体，改用 Canvas 渲染页面后嵌入 PDF |
 | 触控与手势冲突 | 第二指落下时回滚未完成笔画，再进入缩放/平移 |
 | 色卡数据非官方 | 数据版本化、界面标注屏幕参考、支持后续校准 |
@@ -123,7 +124,7 @@
 **开发环境**
 
 - Node 22 LTS，npm（提交 `package-lock.json`）。
-- 无环境变量、无密钥。
+- 无构建时环境变量/密钥；AI Key 由用户运行时输入，按设置存本机 IndexedDB，绝不注入构建产物。
 - 命令：`npm run dev / build / preview / test / test:e2e / typecheck / lint`。
 
 ---
@@ -190,6 +191,7 @@ src/
     editor/                    # 编辑器 UI 壳、工具栏、状态栏、手机坞
     palette/                   # ColorPanel、MyPaletteSheet、色卡筛选
     import/                    # ImportWizard 5 步、裁剪、对比、参数
+    ai/                        # AiGenerateSheet、provider 配置、生成预览与历史
     stats/                     # StatsSheet
     export/                    # ExportSheet、进度、分享
     settings/                  # 画布设置、变换、替换颜色
@@ -207,6 +209,8 @@ src/
     palette.ts                 # MARD 数据访问、我的色卡
     color.ts                   # OKLab、色差、sRGB/线性光
     quantize.ts                # 重采样、背景、限色、抖动（纯函数）
+    resample.ts                # 4×4 面积平均 + 线稿/高光/高彩度细节保留
+    imagegen/                  # AI 请求构建、响应解析、网格提示词与校验（纯函数）
     geometry.ts                # 线/矩形/椭圆/旋转/翻转/尺寸
     stats.ts                   # 用量统计、板数、CSV 行
     pagination.ts              # A4 分页纯函数
@@ -215,9 +219,12 @@ src/
     ids.ts
   workers/
     quantize.worker.ts         # 协议入口
+  services/
+    imagegen/                  # fetch 客户端、超时/脱敏、图片解码、网格渲染
   storage/
-    db.ts                      # idb schema / migrations
+    db.ts                      # idb schema / migrations（v2）
     projectRepository.ts
+    aiRepository.ts            # AI 配置、生成历史、缩略图/图片 Blob
     settingsRepository.ts
     thumbnails.ts
     autosave.ts
@@ -727,6 +734,23 @@ type QuantizeResult = {
 
 ---
 
+### 8.7 AI 生成（可选联网）
+
+```
+提示词 → provider 请求 → 图片/网格 → 校验/解码 → pendingImport
+→ ImportWizard（图片走裁剪，网格走调色）→ 现有量化/预览/应用
+```
+
+- Provider：OpenAI Images（`/images/generations`）、OpenAI Chat（`/chat/completions`）、Gemini（`:generateContent`）。
+- 文生图：返回 `b64_json`/`url`/`inlineData`/Markdown 图片；URL 先 fetch 成 Blob，避免 Canvas taint。
+- 直接网格：要求模型返回 `{width,height,palette,rows}`；本地严格校验尺寸、行宽、字符、HEX、色数；失败可让模型修正（第二次计费调用）。
+- 网格渲染为纯色 PNG（每格 12px，`imageSmoothingEnabled=false`），通过 `pendingImport` 进入向导；关闭自动取景，保持构图。
+- 图片模式从裁剪步骤开始；网格模式从调色步骤开始，复用 `resampleArea`/自动配色/替换或新建。
+- 本地存储：`aiSettings`、`generations`、`generationImages`（DB v2）；历史最近 20 条，图片最长边 1024px；Key 默认本地保存，可关闭「记住密钥」。
+- 网络：浏览器直连，`mode:'cors'`，超时/AbortController/单请求/不自动重试；错误脱敏，不记录 Key/提示词/响应体。
+- 离线：AI 请求不可用；其余功能不受影响。Service Worker 不缓存 API 响应。
+- 测试：`core/imagegen` 纯解析/校验单测；`services/imagegen` fetch mock；`scripts/mock-imagegen-server.mjs` 做浏览器端到端。
+
 ## 9. 导出管线
 
 ### 9.1 共用排版器
@@ -832,12 +856,14 @@ type PdfTile = {
 | 内置 MARD 色卡 | bundle `src/data/palettes/mard.v1.json` | 不写 DB；版本固定 |
 | 导入/自定义色卡快照 | IndexedDB `palettes` | 与内置版本不同才存 |
 | 我的色卡/偏好 | IndexedDB `settings` | myPaletteCodes 默认 221 |
+| AI 服务配置 | IndexedDB `aiSettings` | provider、Base URL、模型、可选 Key |
+| AI 生成历史 | IndexedDB `generations` + `generationImages` | 元数据/缩略图 + 图片 Blob；最近 20 条 |
 | 自动保存 | 防抖写 projects + grids | 800ms；visibilitychange/pagehide 尽力 flush |
-| 备份 | `.pindou.json` | 手动导出/导入；不做云 |
+| 备份 | `.pindou.json` | 手动导出/导入；不含 AI Key/历史 |
 
 - 不使用 localStorage 存工程（容量小、同步阻塞）；生产只用 IndexedDB。
 - 原型 localStorage 仅用于设计演示，开发时删除该路径。
-- 数据库名 `pindou`；`schemaVersion` 1；后续升级用 idb upgrade + 迁移注册表。
+- 数据库名 `pindou`；当前 IndexedDB 版本 2。v1→v2 只新增 `aiSettings` / `generations` / `generationImages`，用 `oldVersion` 分支保留既有工程；`blocked/blocking` 事件提示多标签页升级。
 - 写入失败（配额/隐私模式）：保留内存中的 dirty 状态，Toast 提示；提供「导出工程文件」作为逃生通道。
 
 ### 10.2 自动保存状态机
@@ -873,7 +899,7 @@ dirty --(800ms debounce)--> saving --(ok)--> saved
 - Manifest：`拼豆工坊` / `拼豆工坊`，`display: standalone`，`orientation: any`，`theme_color/background_color: #F6F1E7`，192/512 图标 + maskable。
 - 安装：Android/Chromium `beforeinstallprompt`；iOS 在设置里显示「添加到主屏幕」说明。
 - 安全区：手机底部工具坞/Sheet 使用 `env(safe-area-inset-bottom)`。
-- 离线限制：首次加载需网络；之后完全离线。图片导入/导出/打印都在本地，不依赖网络。
+- 离线限制：首次加载需网络；之后编辑/图片导入/导出/打印都可离线。AI 生成是唯一需要联网的可选功能，离线时禁用并提示。
 - 可选 File Handling API：注册 `.pindou.json` 打开方式（Chromium）；不支持时用文件选择器。
 - 无 analytics、无远程日志；错误只在本地 UI 呈现，避免隐私与离线依赖。
 
@@ -886,12 +912,12 @@ dirty --(800ms debounce)--> saving --(ok)--> saved
 
 ### 10.6 数据安全与隐私
 
-- 全部数据在本机；无网络上传；无账号。
+- 工程、色卡、AI 配置与生成历史在本机；无账号、无本项目服务器。唯一外发是用户主动触发的 AI 生成：提示词和请求直接发往用户配置的第三方服务商；Key 本地保存且不进入工程文件/导出/日志。IndexedDB 不是加密存储，UI 明确提示风险。
 - 导入的 `.pindou.json` 视为不可信：
   - 限制文件大小（如 20MB）、尺寸（≤300×300）、色卡数量（≤500）、base64 长度、hex 正则；
   - 不执行文件里的任何脚本/HTML；
   - 名称/颜色名只作为文本渲染（React 文本节点/Canvas fillText）。
-- CSP（生产）：`default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:;`（按 Vite 产物调整）。
+- CSP（生产，若启用）：`default-src 'self'; connect-src 'self' https:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:;`（AI 自定义 Base URL 需要 https；按 Vite 产物调整）。
 - Service Worker 只缓存同源资源；不缓存用户工程文件。
 
 ---

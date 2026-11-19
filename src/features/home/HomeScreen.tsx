@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   boardCount,
   physicalSize,
@@ -22,9 +22,12 @@ import { downloadText } from '@/utils/download';
 import { NewProjectSheet } from './NewProjectSheet';
 import { ProjectThumb } from './ProjectThumb';
 
+const AiGenerateSheet = lazy(() => import('@/features/ai/AiGenerateSheet').then((module) => ({ default: module.AiGenerateSheet })));
+
 type HomeOverlay =
   | null
   | { type: 'new' }
+  | { type: 'ai' }
   | { type: 'menu'; project: ProjectSummary }
   | { type: 'rename'; project: ProjectSummary }
   | { type: 'delete'; project: ProjectSummary };
@@ -171,6 +174,9 @@ export function HomeScreen() {
               </div>
             </div>
             <div className="home__actions">
+              <button className="btn btn--secondary" onClick={() => setOverlay({ type: 'ai' })} aria-label="AI 生成图纸">
+                <Icon name="sparkles" /><span>AI 生成</span>
+              </button>
               <button className="btn btn--secondary" onClick={() => startImport('home')} aria-label="从图片开始">
                 <Icon name="image" /><span>从图片开始</span>
               </button>
@@ -260,6 +266,7 @@ export function HomeScreen() {
                 <div className="home-empty__actions">
                   <button className="btn btn--primary" onClick={() => setOverlay({ type: 'new' })}><Icon name="plus" />新建图纸</button>
                   <button className="btn btn--secondary" onClick={() => startImport('home')}><Icon name="image" />从图片开始</button>
+                  <button className="btn btn--secondary" onClick={() => setOverlay({ type: 'ai' })}><Icon name="sparkles" />AI 生成</button>
                 </div>
               </div>
             </div>
@@ -290,6 +297,12 @@ export function HomeScreen() {
       <div className="overlay-root">
         {overlay?.type === 'new' && (
           <NewProjectSheet onClose={() => setOverlay(null)} onCreated={(project) => void handleNewCreated(project)} />
+        )}
+
+        {overlay?.type === 'ai' && (
+          <Suspense fallback={null}>
+            <AiGenerateSheet entry="home" onClose={() => setOverlay(null)} />
+          </Suspense>
         )}
 
         {overlay?.type === 'menu' && (
